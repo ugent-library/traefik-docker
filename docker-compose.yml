@@ -1,0 +1,42 @@
+services:
+  traefik:
+    container_name: traefik
+    image: traefik:v2.4
+    command:
+      - --api.dashboard=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      # change email
+      - --certificatesresolvers.myresolver.acme.email=me@domain.com
+      - --certificatesresolvers.myresolver.acme.storage=/shared/acme.json
+      - --certificatesresolvers.myresolver.acme.tlschallenge=true
+      # debug
+      #- --log.level=DEBUG
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./shared:/shared
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      # change domain
+      - "traefik.http.routers.traefik.rule=Host(`domain.com`) && (PathPrefix(`/traefik/`) || Headers(`Referer`, `https://domain.com/traefik/dashboard/`))"
+      - "traefik.http.routers.traefik.middlewares=traefik"
+      - "traefik.http.middlewares.traefik.chain.middlewares=traefik-auth,traefik-strip-prefix"
+      - "traefik.http.middlewares.traefik-strip-prefix.stripprefix.prefixes=/traefik"
+      # generate credentials with 'echo $(htpasswd -nB username) | sed -e s/\\$/\\$\\$/g'
+      - "traefik.http.middlewares.traefik-auth.basicauth.users=username:password"
+      - "traefik.http.routers.traefik.tls=true"
+      - "traefik.http.routers.traefik.tls.certresolver=myresolver"
+      - "traefik.http.routers.traefik.service=api@internal"
+    networks:
+      - proxy_network
+
+networks:
+  proxy_network:
+    name: proxy_network
+
